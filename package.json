@@ -1,0 +1,27 @@
+{
+  "name": "credgeek",
+  "version": "1.0.0",
+  "description": "Voice-first, gamified credit-building companion for women. Cloudinary-backed media.",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --watch --disable-warning=ExperimentalWarning src/server.js",
+    "test": "CLOUDINARY_MOCK=1 node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
+    "assets:upload": "node scripts/upload-assets.js",
+    "audio:warm": "node --disable-warning=ExperimentalWarning scripts/warm-audio.js",
+    "cloudinary:check": "node scripts/check-cloudinary.js"
+  },
+  "dependencies": {
+    "cloudinary": "^2.11.0",
+    "dotenv": "^18.0.9",
+    "express": "^4.21.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^4.6.7"
+  }
+}
