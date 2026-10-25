@@ -73,6 +73,7 @@ const UI = {
     demoFill: 'Fill Demo Account',
     soundOn: 'Sound FX: ON',
     soundOff: 'Sound FX: OFF',
+    tour: 'App Tour',
   },
   hi: {
     title: 'क्रेडगीक',
@@ -138,6 +139,7 @@ const UI = {
     demoFill: 'डेमो खाता भरें',
     soundOn: 'आवाज़ प्रभाव: चालू',
     soundOff: 'आवाज़ प्रभाव: बंद',
+    tour: 'ऐप गाइड',
   },
 };
 
@@ -511,19 +513,27 @@ function renderTopBar(activeNav) {
           h('span', { class: 'user-avatar-icon' }, avatarInitial),
           h('span', {}, me.nick)
         ),
-        h('div', { class: 'coins-badge', title: `${me.coins} ${t('coins')}` },
+        h('div', { class: 'coins-badge', id: 'top-coins-badge', title: `${me.coins} ${t('coins')}` },
           h('span', { class: 'coin-icon' }, '🪙'),
           h('span', {}, `${me.coins}`)
         )
       ),
       h('div', { class: 'top-bar-actions' },
         h('button', {
+          class: 'top-btn tour-btn',
+          id: 'top-tour-btn',
+          title: lang === 'hi' ? 'क्रेडसाथी ऐप गाइड शुरू करें' : 'Start CredSaathi App Tour',
+          onclick: () => startTutorial(true)
+        }, '✨ ' + (lang === 'hi' ? 'गाइड' : 'Tour')),
+        h('button', {
           class: 'top-btn cld-pill',
+          id: 'top-cld-btn',
           title: t('cldInfo'),
           onclick: () => alert(`${t('cldActive')}\n\n${t('cldInfo')}`)
         }, '⚡ Cloudinary'),
         h('button', {
           class: 'top-btn',
+          id: 'top-discreet-btn',
           title: t('discreet'),
           onclick: toggleDiscreet
         }, '👁️'),
@@ -575,6 +585,7 @@ function renderBottomDock(activeNav) {
     h('nav', { class: 'bottom-dock' },
       items.map((item) =>
         h('button', {
+          id: `nav-${item.id}`,
           class: `dock-item ${activeNav === item.id ? 'active' : ''}`,
           onclick: () => item.action(),
         },
@@ -629,8 +640,326 @@ function renderView(activeNav, ...nodes) {
 }
 const render = (...nodes) => renderView(null, ...nodes);
 
-const backBtn = (fn = showHome) =>
-  h('button', { class: 'top-btn', style: 'margin-bottom:12px;', onclick: fn }, `← ${t('back')}`);
+// ==========================================================================
+// INTERACTIVE ASSISTANT & GUIDED ONBOARDING TOUR (CredSaathi · क्रेडसाथी)
+// ==========================================================================
+let currentTutorialStep = 0;
+let tutorialNarratorActive = true;
+let tutorialActive = false;
+
+const TUTORIAL_STEPS = [
+  {
+    id: 'welcome',
+    target: null, // Centered modal
+    tag: { hi: '✨ AI वित्तीय साथी', en: '✨ Personal Guide' },
+    title: { hi: 'नमस्ते! मैं हूँ क्रेडसाथी 🤝', en: 'Namaste! Meet CredSaathi 🤝' },
+    desc: {
+      hi: 'क्रेडगीक (CredGeek) में आपका स्वागत है! मैं आपका व्यक्तिगत वित्तीय सहायक हूँ। चलिए 1 मिनट में समझते हैं कि यह ऐप आपका क्रेडिट स्कोर सुरक्षित और मजबूत बनाने में कैसे मदद करता है!',
+      en: 'Welcome to CredGeek! I am your personal financial guide. Let me show you around in 1 minute so you can discover how to build safe credit, earn rewards, and secure your financial future.'
+    },
+    voice: {
+      hi: 'नमस्ते! मैं क्रेडसाथी हूँ, आपका व्यक्तिगत वित्तीय सहायक। क्रेडगीक में आपका स्वागत है! चलिए ऐप के मुख्य फीचर्स को समझते हैं।',
+      en: 'Namaste and welcome to CredGeek! I am CredSaathi, your personal assistant. Let me show you how to navigate your financial journey with ease and confidence.'
+    }
+  },
+  {
+    id: 'topbar',
+    target: '.top-bar',
+    fallbackTarget: '#top-coins-badge',
+    tag: { hi: '🪙 गुल्लक और प्राइवेसी', en: '🪙 Gullak & Privacy' },
+    title: { hi: 'गुल्लक सिक्के और गोपनीयता शील्ड 👁️', en: 'Gullak Coins & Privacy Mode 👁️' },
+    desc: {
+      hi: 'ऊपर आपकी गुल्लक है जहाँ सीखकर कमाए सिक्के (🪙) जमा होते हैं। साथ ही 👁️ आँख वाले बटन से आप 1-टैप में स्क्रीन को सादी किराना लिस्ट में बदल सकती हैं ताकि कोई आपका वित्तीय डेटा न झाँके!',
+      en: 'At the top is your Gullak tracking your earned reward coins (🪙). Plus, 1-tap Discreet Mode (👁️) disguises your screen as a plain grocery list to protect your financial privacy.'
+    },
+    voice: {
+      hi: 'यहाँ ऊपर आपकी गुल्लक है जहाँ आपके सिक्के जमा होते हैं। और आँख वाले बटन को दबाकर आप अपनी स्क्रीन को तुरंत छुपा सकते हैं।',
+      en: 'At the top is your Gullak coin tracker. And with the eye button, you can instantly disguise your screen for complete domestic privacy.'
+    }
+  },
+  {
+    id: 'ladder',
+    target: '#hub-ladder-card',
+    fallbackTarget: '#nav-ladder',
+    tag: { hi: '🪜 6-सीढ़ी रोडमैप', en: '🪜 6-Rung Roadmap' },
+    title: { hi: 'साँप-सीढ़ी क्रेडिट यात्रा 🪜', en: 'Snakes & Ladders Credit Path 🪜' },
+    desc: {
+      hi: 'शून्य से 750+ क्रेडिट स्कोर तक की 6 सुरक्षित सीढ़ियाँ। सीढ़ियाँ (जैसे समय पर बिल भरना) आपको ऊपर ले जाती हैं, और खतरनाक फर्जी लोन ऐप के साँपों से बचाती हैं!',
+      en: 'A clear 6-rung roadmap from zero to 750+ score. Ladders (like timely bill payments) lift you up, while alerts warn you against high-interest loan app snakes!'
+    },
+    voice: {
+      hi: 'यह आपकी साँप-सीढ़ी क्रेडिट यात्रा है। अच्छी आदतें आपको सीढ़ी चढ़ाएंगी, और खतरनाक लोन ऐप के साँपों से बचाएंगी।',
+      en: 'This is your Snakes and Ladders credit roadmap. Good habits act as ladders, and alerts protect you from predatory loan traps.'
+    }
+  },
+  {
+    id: 'games',
+    target: '#hub-games-card',
+    fallbackTarget: '#nav-games',
+    tag: { hi: '🎲 किराना और ट्रैप खेल', en: '🎲 Kirana & Trap Games' },
+    title: { hi: 'किराना बजट और ट्रैप खेल 🎲', en: 'Kirana Budget & Trap Detection 🎲' },
+    desc: {
+      hi: 'खेलते-खेलते वित्तीय समझ बढ़ाएं! ₹1,000 के किराना बजट में जरूरी और गैर-जरूरी खर्चों को छाँटना सीखें, और फर्जी 7-दिवसीय लोन SMS के धोखे को पहचानें।',
+      en: 'Learn financial wisdom through games! Practice balancing a ₹1,000 grocery budget between needs and wants, and train your eyes to catch predatory loan SMS scams.'
+    },
+    voice: {
+      hi: 'खेल सेक्शन में आप किराना बजट बनाना सीखेंगे और फर्जी लोन ऑफर्स में छुपे जाल को पहचानना सीखेंगे।',
+      en: 'In the games section, practice smart grocery budgeting and train yourself to spot deceptive loan scams before they trick you.'
+    }
+  },
+  {
+    id: 'tree_safety',
+    target: '#hub-tree-card',
+    fallbackTarget: '#nav-tree',
+    tag: { hi: '🌳 ट्री और सुरक्षा', en: '🌳 Living Tree & Safety' },
+    title: { hi: 'सदाबहार स्कोर ट्री और सुरक्षा शील्ड 🛡️', en: 'Living Score Tree & Safety Shield 🛡️' },
+    desc: {
+      hi: 'आपका क्रेडिट ट्री कभी मरता नहीं है—मुश्किल दिनों में यह शांत सो जाता है। सुरक्षा टैब में आधार/सिम ऑडिट और महिला हेल्पलाइन 181 व कानूनी सहायता 15100 का 1-टैप सपोर्ट है।',
+      en: 'Your score tree never dies—during hardships it enters a compassionate pause. In Safety, run Aadhaar SIM audits with 1-tap Women Helpline 181 and NALSA legal aid.'
+    },
+    voice: {
+      hi: 'आपका स्कोर ट्री हमेशा बढ़ता रहेगा और कभी नष्ट नहीं होगा। सुरक्षा सेक्शन में सरकारी हेल्पलाइन और सिम सुरक्षा मौजूद है। आपका दौरा पूरा हुआ!',
+      en: 'Your credit tree grows with your habits and never dies. And the safety shield protects your identity. Your tour is complete, let us begin!'
+    }
+  }
+];
+
+function stopTutorialNarrator() {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {}
+  }
+}
+
+function speakTutorialNarrator(text) {
+  stopTutorialNarrator();
+  if (!tutorialNarratorActive || !soundEnabled) return;
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang === 'hi' ? 'hi-IN' : 'en-IN';
+    u.rate = 0.95;
+    u.pitch = 1.05;
+
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    const targetPrefix = lang === 'hi' ? 'hi' : 'en';
+    const match = voices.find(v => v.lang.toLowerCase().startsWith(targetPrefix)) ||
+                  voices.find(v => v.lang.toLowerCase().includes('in'));
+    if (match) u.voice = match;
+
+    const updateStatus = (html) => {
+      const el = $('#tutorial-voice-status-text');
+      if (el) el.innerHTML = html;
+    };
+
+    u.onstart = () => {
+      updateStatus(`🔊 <em>${lang === 'hi' ? 'क्रेडसाथी समझा रहे हैं...' : 'CredSaathi is speaking...'}</em>`);
+    };
+
+    u.onend = () => {
+      updateStatus(`✅ ${lang === 'hi' ? 'विवरण पूरा हुआ' : 'Narration complete'}`);
+    };
+
+    u.onerror = () => {
+      updateStatus(`🔈 ${lang === 'hi' ? 'ऑडियो तैयार' : 'Audio ready'}`);
+    };
+
+    window.speechSynthesis.speak(u);
+  } catch (e) {
+    console.warn('Narrator TTS notice:', e);
+  }
+}
+
+function updateTutorialSpotlight(step) {
+  let spotlight = $('#tutorial-spotlight');
+  const mount = $('#tutorial-mount');
+  if (!mount) return;
+
+  if (!spotlight) {
+    spotlight = document.createElement('div');
+    spotlight.id = 'tutorial-spotlight';
+    spotlight.className = 'tutorial-spotlight';
+    mount.appendChild(spotlight);
+  }
+
+  let el = null;
+  if (step.target) el = document.querySelector(step.target);
+  if (!el && step.fallbackTarget) el = document.querySelector(step.fallbackTarget);
+
+  if (!el) {
+    spotlight.style.display = 'none';
+    return;
+  }
+
+  try {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch {}
+
+  const reposition = () => {
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    spotlight.style.display = 'block';
+    spotlight.style.top = `${Math.max(4, rect.top - pad)}px`;
+    spotlight.style.left = `${Math.max(4, rect.left - pad)}px`;
+    spotlight.style.width = `${rect.width + pad * 2}px`;
+    spotlight.style.height = `${rect.height + pad * 2}px`;
+  };
+
+  reposition();
+  setTimeout(reposition, 180);
+}
+
+function renderTutorialStep(idx) {
+  tutorialActive = true;
+  currentTutorialStep = Math.max(0, Math.min(idx, TUTORIAL_STEPS.length - 1));
+  const step = TUTORIAL_STEPS[currentTutorialStep];
+  const isFirst = currentTutorialStep === 0;
+  const isLast = currentTutorialStep === TUTORIAL_STEPS.length - 1;
+
+  const mount = $('#tutorial-mount');
+  if (!mount) return;
+
+  mount.replaceChildren(
+    h('div', { class: 'tutorial-overlay' },
+      h('div', { class: 'tutorial-card' },
+        // Assistant Badge Header
+        h('div', { class: 'assistant-badge' },
+          h('div', { class: 'assistant-info' },
+            h('div', { class: 'assistant-avatar' }, '🤝'),
+            h('div', { class: 'assistant-title' },
+              h('span', {}, 'CredSaathi · क्रेडसाथी'),
+              h('span', { class: 'assistant-sub' }, lang === 'hi' ? 'आपका व्यक्तिगत वित्तीय गाइड' : 'Your Personal Financial Guide')
+            )
+          ),
+          h('button', {
+            class: 'top-btn',
+            style: 'padding: 4px 10px; font-size: 11px;',
+            title: tutorialNarratorActive ? (lang === 'hi' ? 'आवाज़ बंद करें' : 'Mute Narrator') : (lang === 'hi' ? 'आवाज़ चालू करें' : 'Enable Narrator'),
+            onclick: () => {
+              tutorialNarratorActive = !tutorialNarratorActive;
+              if (!tutorialNarratorActive) {
+                stopTutorialNarrator();
+                toast(lang === 'hi' ? '🔇 गाइड आवाज़ म्यूट' : '🔇 Narrator muted');
+              } else {
+                speakTutorialNarrator(step.voice[lang] || step.desc[lang]);
+                toast(lang === 'hi' ? '🔊 गाइड आवाज़ चालू' : '🔊 Narrator active');
+              }
+              renderTutorialStep(currentTutorialStep);
+            }
+          }, tutorialNarratorActive ? '🔊 ' + (lang === 'hi' ? 'आवाज़' : 'Audio') : '🔇 ' + (lang === 'hi' ? 'म्यूट' : 'Mute'))
+        ),
+
+        // Tag pill
+        h('div', { class: 'tutorial-tag-pill' }, step.tag[lang] || step.tag.en),
+
+        // Title
+        h('h3', { class: 'tutorial-title' }, step.title[lang] || step.title.en),
+
+        // Description
+        h('p', { class: 'tutorial-desc' }, step.desc[lang] || step.desc.en),
+
+        // Voice narration status indicator
+        h('div', { class: 'tutorial-voice-status' },
+          h('span', { id: 'tutorial-voice-status-text' },
+            tutorialNarratorActive && soundEnabled
+              ? `🔊 <em>${lang === 'hi' ? 'क्रेडसाथी समझा रहे हैं...' : 'CredSaathi is speaking...'}</em>`
+              : `🔈 <em>${lang === 'hi' ? 'आवाज़ बंद है' : 'Audio muted'}</em>`
+          ),
+          h('button', {
+            class: 'top-btn',
+            style: 'padding: 2px 8px; font-size: 11px;',
+            title: lang === 'hi' ? 'दोबारा सुनें' : 'Listen again',
+            onclick: () => speakTutorialNarrator(step.voice[lang] || step.desc[lang])
+          }, '🔄 ' + (lang === 'hi' ? 'दोबारा सुनें' : 'Replay'))
+        ),
+
+        // Navigation Footer
+        h('div', { class: 'tutorial-nav' },
+          // Step dots
+          h('div', { class: 'tutorial-dots' },
+            ...TUTORIAL_STEPS.map((_, i) =>
+              h('div', {
+                class: `tutorial-dot ${i === currentTutorialStep ? 'active' : ''}`,
+                style: 'cursor: pointer;',
+                title: `Step ${i + 1} of ${TUTORIAL_STEPS.length}`,
+                onclick: () => renderTutorialStep(i)
+              })
+            )
+          ),
+          // Button row
+          h('div', { class: 'tutorial-btn-row' },
+            !isFirst && h('button', {
+              class: 'top-btn',
+              onclick: () => renderTutorialStep(currentTutorialStep - 1)
+            }, `← ${lang === 'hi' ? 'पिछला' : 'Back'}`),
+            h('button', {
+              class: 'top-btn',
+              onclick: closeTutorial
+            }, lang === 'hi' ? 'छोड़ें' : 'Skip'),
+            h('button', {
+              class: 'primary',
+              style: 'padding: 8px 16px; font-size: 13px;',
+              onclick: () => {
+                if (isLast) {
+                  finishTutorial();
+                } else {
+                  renderTutorialStep(currentTutorialStep + 1);
+                }
+              }
+            }, isLast
+              ? `🚀 ${lang === 'hi' ? 'शुरू करें!' : 'Get Started!'}`
+              : `${lang === 'hi' ? 'अगला' : 'Next'} →`
+            )
+          )
+        )
+      )
+    )
+  );
+
+  updateTutorialSpotlight(step);
+  speakTutorialNarrator(step.voice[lang] || step.desc[lang]);
+}
+
+function closeTutorial() {
+  stopTutorialNarrator();
+  tutorialActive = false;
+  $('#tutorial-mount')?.replaceChildren();
+  toast(lang === 'hi' ? 'दौरा बंद किया गया। आप ऊपर ✨ गाइड से कभी भी देख सकते हैं।' : 'Tour dismissed. You can reopen it anytime via ✨ Guide.');
+}
+
+function finishTutorial() {
+  stopTutorialNarrator();
+  tutorialActive = false;
+  store.set('credgeek_tutorial_done', 'true');
+  $('#tutorial-mount')?.replaceChildren();
+  sfx.play('fanfare');
+  triggerConfetti();
+  toast(lang === 'hi' ? '🌟 दौरा पूरा हुआ! क्रेडसाथी हमेशा सहायता के लिए तैयार है।' : '🌟 Tour complete! CredSaathi is always here to guide you.');
+}
+
+async function startTutorial(isManual = false) {
+  if (isManual && current !== showHome && token) {
+    await showHome();
+  }
+  renderTutorialStep(0);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => {
+    if (tutorialActive) {
+      const step = TUTORIAL_STEPS[currentTutorialStep];
+      if (step) updateTutorialSpotlight(step);
+    }
+  });
+  window.addEventListener('scroll', () => {
+    if (tutorialActive) {
+      const step = TUTORIAL_STEPS[currentTutorialStep];
+      if (step) updateTutorialSpotlight(step);
+    }
+  }, { passive: true });
+}
 
 // ==========================================================================
 // SCREEN 1: LOGIN & ONBOARDING
@@ -713,7 +1042,12 @@ function showLogin() {
       pin,
       h('button', { class: 'primary block', onclick: doAuth('register') }, `✨ ${t('register')}`),
       h('button', { class: 'block', onclick: doAuth('login') }, `🔑 ${t('login')}`),
-      h('button', { class: 'block', style: 'border-style:dashed;', onclick: fillSample }, `⚡ ${t('demoFill')}`)
+      h('button', { class: 'block', style: 'border-style:dashed;', onclick: fillSample }, `⚡ ${t('demoFill')}`),
+      h('button', {
+        class: 'top-btn',
+        style: 'width:100%; justify-content:center; margin-top:8px;',
+        onclick: () => startTutorial(true)
+      }, '✨ ' + (lang === 'hi' ? 'क्रेडसाथी असिस्टेंट दौरा देखें' : 'Preview CredSaathi Assistant Tour'))
     ),
     h('p', { class: 'quiet', style: 'text-align:center;' },
       lang === 'hi'
@@ -843,22 +1177,22 @@ async function showHome() {
     // Fast Hub Grid (Ladder Board, Lessons, Games, Tree, Safety)
     h('h2', { text: lang === 'hi' ? 'आपकी प्रगति' : 'Your Progress Hub' }),
     h('div', { style: 'display:grid; grid-template-columns:1fr 1fr; gap:12px;' },
-      h('div', { class: 'card', style: 'margin:0; cursor:pointer;', onclick: showLadderBoard },
+      h('div', { id: 'hub-ladder-card', class: 'card', style: 'margin:0; cursor:pointer;', onclick: showLadderBoard },
         h('div', { style: 'font-size:28px;' }, '🪜'),
         h('h3', { text: t('ladder') }),
         h('p', { class: 'quiet', text: `${me.ladder.filter((r) => r.status === 'done').length}/6 completed` })
       ),
-      h('div', { class: 'card', style: 'margin:0; cursor:pointer;', onclick: showTree },
+      h('div', { id: 'hub-tree-card', class: 'card', style: 'margin:0; cursor:pointer;', onclick: showTree },
         h('div', { style: 'font-size:28px;' }, '🌳'),
         h('h3', { text: t('tree') }),
         h('p', { class: 'quiet', text: `${me.tree.rings} ${t('rings')} · ${me.tree.stage}` })
       ),
-      h('div', { class: 'card', style: 'margin:0; cursor:pointer;', onclick: showLessons },
+      h('div', { id: 'hub-lessons-card', class: 'card', style: 'margin:0; cursor:pointer;', onclick: showLessons },
         h('div', { style: 'font-size:28px;' }, '📘'),
         h('h3', { text: t('lessons') }),
         h('p', { class: 'quiet', text: '6 Daily Modules' })
       ),
-      h('div', { class: 'card', style: 'margin:0; cursor:pointer;', onclick: () => showGames() },
+      h('div', { id: 'hub-games-card', class: 'card', style: 'margin:0; cursor:pointer;', onclick: () => showGames() },
         h('div', { style: 'font-size:28px;' }, '🎲'),
         h('h3', { text: t('games') }),
         h('p', { class: 'quiet', text: 'Kirana · Trap · Story' })
@@ -883,6 +1217,15 @@ async function showHome() {
           h('p', { class: 'quiet', text: lang === 'hi' ? 'पाठ पूरा करने और खेल खेलने पर नए बैज मिलेंगे!' : 'Complete lessons and play games to unlock shiny badges!' })
         )
   );
+
+  // Auto-launch interactive assistant tour on first landing
+  if (!store.get('credgeek_tutorial_done')) {
+    setTimeout(() => {
+      if (!document.querySelector('.tutorial-overlay')) {
+        startTutorial(false);
+      }
+    }, 600);
+  }
 }
 
 async function answerNight(q, answer) {
