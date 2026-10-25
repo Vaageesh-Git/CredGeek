@@ -724,91 +724,137 @@ const TUTORIAL_STEPS = [
   }
 ];
 
+let _activeUtterance = null;
+
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+  if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices();
+    };
+  }
+}
+
 function stopTutorialNarrator() {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
+      _activeUtterance = null;
     } catch {}
   }
 }
 
 function speakTutorialNarrator(text) {
-  stopTutorialNarrator();
-  if (!tutorialNarratorActive || !soundEnabled) return;
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  if (!tutorialNarratorActive || !soundEnabled) return;
+  if (!text) return;
 
-  try {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang === 'hi' ? 'hi-IN' : 'en-IN';
-    u.rate = 0.95;
-    u.pitch = 1.05;
+  stopTutorialNarrator();
 
-    const voices = window.speechSynthesis.getVoices?.() || [];
-    const targetPrefix = lang === 'hi' ? 'hi' : 'en';
-    const match = voices.find(v => v.lang.toLowerCase().startsWith(targetPrefix)) ||
-                  voices.find(v => v.lang.toLowerCase().includes('in'));
-    if (match) u.voice = match;
+  setTimeout(() => {
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
 
-    const updateStatus = (html) => {
-      const el = $('#tutorial-voice-status-text');
-      if (el) el.innerHTML = html;
-    };
+      const u = new SpeechSynthesisUtterance(text);
+      _activeUtterance = u; // Keep reference to prevent Garbage Collection in Chrome
 
-    u.onstart = () => {
-      updateStatus(`🔊 <em>${lang === 'hi' ? 'क्रेडसाथी समझा रहे हैं...' : 'CredSaathi is speaking...'}</em>`);
-    };
+      u.lang = lang === 'hi' ? 'hi-IN' : 'en-IN';
+      u.rate = 0.95;
+      u.pitch = 1.0;
 
-    u.onend = () => {
-      updateStatus(`✅ ${lang === 'hi' ? 'विवरण पूरा हुआ' : 'Narration complete'}`);
-    };
+      const voices = window.speechSynthesis.getVoices?.() || [];
+      if (voices.length > 0) {
+        if (lang === 'hi') {
+          const hiVoice = voices.find(v => v.lang.toLowerCase().includes('hi') || v.name.toLowerCase().includes('hindi') || v.name.toLowerCase().includes('lekha'));
+          if (hiVoice) u.voice = hiVoice;
+        } else {
+          const enVoice = voices.find(v => v.lang.toLowerCase().includes('en-in') || v.name.toLowerCase().includes('india') || v.lang.toLowerCase().startsWith('en'));
+          if (enVoice) u.voice = enVoice;
+        }
+      }
 
-    u.onerror = () => {
-      updateStatus(`🔈 ${lang === 'hi' ? 'ऑडियो तैयार' : 'Audio ready'}`);
-    };
+      const updateStatus = (html) => {
+        const el = $('#tutorial-voice-status-text');
+        if (el) el.innerHTML = html;
+      };
 
-    window.speechSynthesis.speak(u);
-  } catch (e) {
-    console.warn('Narrator TTS notice:', e);
-  }
+      u.onstart = () => {
+        updateStatus(`🔊 <em>${lang === 'hi' ? 'क्रेडसाथी समझा रहे हैं...' : 'CredSaathi is speaking...'}</em>`);
+      };
+
+      u.onend = () => {
+        updateStatus(`✅ ${lang === 'hi' ? 'विवरण पूरा हुआ' : 'Narration complete'}`);
+        _activeUtterance = null;
+      };
+
+      u.onerror = (e) => {
+        console.warn('[CredSaathi TTS event]:', e?.error || e);
+        if (e?.error === 'not-allowed') {
+          updateStatus(`👆 <em>${lang === 'hi' ? 'सुनने के लिए 🔄 दबाएँ' : 'Tap 🔄 to listen'}</em>`);
+        } else {
+          updateStatus(`🔈 <em>${lang === 'hi' ? 'ऑडियो तैयार' : 'Audio ready'}</em>`);
+        }
+        _activeUtterance = null;
+      };
+
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      console.warn('Narrator TTS notice:', e);
+    }
+  }, 90);
 }
 
-function updateTutorialSpotlight(step) {
-  let spotlight = $('#tutorial-spotlight');
-  const mount = $('#tutorial-mount');
-  if (!mount) return;
+const svgEl = (tag, attrs = {}) => {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+};
 
-  if (!spotlight) {
-    spotlight = document.createElement('div');
-    spotlight.id = 'tutorial-spotlight';
-    spotlight.className = 'tutorial-spotlight';
-    mount.appendChild(spotlight);
-  }
+function updateTutorialSpotlight(step) {
+  const cutout = $('#tutorial-cutout');
+  const border = $('#tutorial-cutout-border');
+  if (!cutout || !border) return;
 
   let el = null;
   if (step.target) el = document.querySelector(step.target);
   if (!el && step.fallbackTarget) el = document.querySelector(step.fallbackTarget);
 
   if (!el) {
-    spotlight.style.display = 'none';
+    cutout.setAttribute('width', '0');
+    cutout.setAttribute('height', '0');
+    border.style.display = 'none';
     return;
   }
 
   try {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch {}
 
   const reposition = () => {
     const rect = el.getBoundingClientRect();
-    const pad = 8;
-    spotlight.style.display = 'block';
-    spotlight.style.top = `${Math.max(4, rect.top - pad)}px`;
-    spotlight.style.left = `${Math.max(4, rect.left - pad)}px`;
-    spotlight.style.width = `${rect.width + pad * 2}px`;
-    spotlight.style.height = `${rect.height + pad * 2}px`;
+    const pad = 6;
+    const x = Math.max(2, rect.left - pad);
+    const y = Math.max(2, rect.top - pad);
+    const w = rect.width + pad * 2;
+    const h = rect.height + pad * 2;
+
+    cutout.setAttribute('x', `${x}`);
+    cutout.setAttribute('y', `${y}`);
+    cutout.setAttribute('width', `${w}`);
+    cutout.setAttribute('height', `${h}`);
+
+    border.setAttribute('x', `${x}`);
+    border.setAttribute('y', `${y}`);
+    border.setAttribute('width', `${w}`);
+    border.setAttribute('height', `${h}`);
+    border.style.display = 'block';
   };
 
   reposition();
-  setTimeout(reposition, 180);
+  setTimeout(reposition, 120);
+  setTimeout(reposition, 300);
 }
 
 function renderTutorialStep(idx) {
@@ -821,97 +867,188 @@ function renderTutorialStep(idx) {
   const mount = $('#tutorial-mount');
   if (!mount) return;
 
+  const isCentered = isFirst || !step.target;
+  const cardCls = `tutorial-card ${isCentered ? 'modal-center' : 'docked-bottom'}`;
+  const isGuest = !token;
+
+  // Build SVG Cutout Mask Overlay
+  const overlaySvg = svgEl('svg', {
+    id: 'tutorial-overlay-svg',
+    class: 'tutorial-overlay-svg'
+  });
+  overlaySvg.onclick = closeTutorial;
+
+  const defs = svgEl('defs');
+  const mask = svgEl('mask', { id: 'tutorial-mask', maskUnits: 'userSpaceOnUse' });
+  const maskBg = svgEl('rect', { x: '0', y: '0', width: '100%', height: '100%', fill: 'white' });
+  const cutout = svgEl('rect', {
+    id: 'tutorial-cutout',
+    x: '0',
+    y: '0',
+    width: '0',
+    height: '0',
+    rx: '16',
+    ry: '16',
+    fill: 'black'
+  });
+  mask.append(maskBg, cutout);
+  defs.appendChild(mask);
+
+  const backdrop = svgEl('rect', {
+    x: '0',
+    y: '0',
+    width: '100%',
+    height: '100%',
+    fill: 'rgba(8, 15, 28, 0.82)',
+    mask: 'url(#tutorial-mask)'
+  });
+
+  const border = svgEl('rect', {
+    id: 'tutorial-cutout-border',
+    class: 'cutout-border',
+    x: '0',
+    y: '0',
+    width: '0',
+    height: '0',
+    rx: '16',
+    ry: '16',
+    fill: 'none'
+  });
+  border.style.display = 'none';
+
+  overlaySvg.append(defs, backdrop, border);
+
   mount.replaceChildren(
-    h('div', { class: 'tutorial-overlay' },
-      h('div', { class: 'tutorial-card' },
-        // Assistant Badge Header
-        h('div', { class: 'assistant-badge' },
-          h('div', { class: 'assistant-info' },
-            h('div', { class: 'assistant-avatar' }, '🤝'),
-            h('div', { class: 'assistant-title' },
-              h('span', {}, 'CredSaathi · क्रेडसाथी'),
-              h('span', { class: 'assistant-sub' }, lang === 'hi' ? 'आपका व्यक्तिगत वित्तीय गाइड' : 'Your Personal Financial Guide')
-            )
-          ),
-          h('button', {
-            class: 'top-btn',
-            style: 'padding: 4px 10px; font-size: 11px;',
-            title: tutorialNarratorActive ? (lang === 'hi' ? 'आवाज़ बंद करें' : 'Mute Narrator') : (lang === 'hi' ? 'आवाज़ चालू करें' : 'Enable Narrator'),
-            onclick: () => {
-              tutorialNarratorActive = !tutorialNarratorActive;
-              if (!tutorialNarratorActive) {
-                stopTutorialNarrator();
-                toast(lang === 'hi' ? '🔇 गाइड आवाज़ म्यूट' : '🔇 Narrator muted');
-              } else {
-                speakTutorialNarrator(step.voice[lang] || step.desc[lang]);
-                toast(lang === 'hi' ? '🔊 गाइड आवाज़ चालू' : '🔊 Narrator active');
-              }
-              renderTutorialStep(currentTutorialStep);
+    overlaySvg,
+    h('div', { class: cardCls, onclick: (e) => e.stopPropagation() },
+      // Assistant Badge Header
+      h('div', { class: 'assistant-badge' },
+        h('div', { class: 'assistant-info' },
+          h('div', { class: 'assistant-avatar' }, '🤝'),
+          h('div', { class: 'assistant-title' },
+            h('span', {}, 'CredSaathi · क्रेडसाथी'),
+            h('span', { class: 'assistant-sub' }, lang === 'hi' ? 'आपका व्यक्तिगत वित्तीय गाइड' : 'Your Personal Financial Guide')
+          )
+        ),
+        h('button', {
+          class: 'top-btn',
+          style: 'padding: 4px 10px; font-size: 11px;',
+          title: tutorialNarratorActive ? (lang === 'hi' ? 'आवाज़ बंद करें' : 'Mute Narrator') : (lang === 'hi' ? 'आवाज़ चालू करें' : 'Enable Narrator'),
+          onclick: () => {
+            tutorialNarratorActive = !tutorialNarratorActive;
+            if (!tutorialNarratorActive) {
+              stopTutorialNarrator();
+              toast(lang === 'hi' ? '🔇 गाइड आवाज़ म्यूट' : '🔇 Narrator muted');
+            } else {
+              speakTutorialNarrator(step.voice[lang] || step.desc[lang]);
+              toast(lang === 'hi' ? '🔊 गाइड आवाज़ चालू' : '🔊 Narrator active');
             }
-          }, tutorialNarratorActive ? '🔊 ' + (lang === 'hi' ? 'आवाज़' : 'Audio') : '🔇 ' + (lang === 'hi' ? 'म्यूट' : 'Mute'))
+            renderTutorialStep(currentTutorialStep);
+          }
+        }, tutorialNarratorActive ? '🔊 ' + (lang === 'hi' ? 'आवाज़' : 'Audio') : '🔇 ' + (lang === 'hi' ? 'म्यूट' : 'Mute'))
+      ),
+
+      // Tag pill
+      h('div', { class: 'tutorial-tag-pill' }, step.tag[lang] || step.tag.en),
+
+      // Title
+      h('h3', { class: 'tutorial-title' }, step.title[lang] || step.title.en),
+
+      // Description
+      h('p', { class: 'tutorial-desc' }, step.desc[lang] || step.desc.en),
+
+      // 1-tap demo start on Welcome step if visitor is not logged in yet
+      isFirst && isGuest && h('button', {
+        class: 'primary block',
+        style: 'margin-bottom:14px; font-weight:700; background:linear-gradient(135deg, var(--brand) 0%, #0d9488 100%); font-size:14px; padding:12px;',
+        onclick: async () => {
+          const randomNum = Math.floor(1000 + Math.random() * 9000);
+          const nick = `priya_${randomNum}`;
+          const pin = '1234';
+          try {
+            toast(lang === 'hi' ? '⚡ डेमो खाता तैयार किया जा रहा है...' : '⚡ Setting up demo account...');
+            const r = await api('POST', '/auth/register', { nick, pin, lang });
+            token = r.token;
+            store.set('token', token);
+            me = await api('GET', '/me');
+            lang = me.lang;
+            store.set('lang', lang);
+            await showHome();
+            renderTutorialStep(1);
+          } catch {
+            await showHome();
+            renderTutorialStep(1);
+          }
+        }
+      }, `⚡ ${lang === 'hi' ? 'प्रिया के रूप में तुरंत डेमो शुरू करें' : 'Try Instant Demo as Priya'}`),
+
+      // Voice narration status indicator
+      h('div', { class: 'tutorial-voice-status' },
+        h('span', { id: 'tutorial-voice-status-text' },
+          tutorialNarratorActive && soundEnabled
+            ? `🔊 <em>${lang === 'hi' ? 'क्रेडसाथी समझा रहे हैं...' : 'CredSaathi is speaking...'}</em>`
+            : `🔈 <em>${lang === 'hi' ? 'आवाज़ बंद है' : 'Audio muted'}</em>`
         ),
+        h('button', {
+          class: 'top-btn',
+          style: 'padding: 2px 8px; font-size: 11px;',
+          title: lang === 'hi' ? 'दोबारा सुनें' : 'Listen again',
+          onclick: () => speakTutorialNarrator(step.voice[lang] || step.desc[lang])
+        }, '🔄 ' + (lang === 'hi' ? 'दोबारा सुनें' : 'Replay'))
+      ),
 
-        // Tag pill
-        h('div', { class: 'tutorial-tag-pill' }, step.tag[lang] || step.tag.en),
-
-        // Title
-        h('h3', { class: 'tutorial-title' }, step.title[lang] || step.title.en),
-
-        // Description
-        h('p', { class: 'tutorial-desc' }, step.desc[lang] || step.desc.en),
-
-        // Voice narration status indicator
-        h('div', { class: 'tutorial-voice-status' },
-          h('span', { id: 'tutorial-voice-status-text' },
-            tutorialNarratorActive && soundEnabled
-              ? `🔊 <em>${lang === 'hi' ? 'क्रेडसाथी समझा रहे हैं...' : 'CredSaathi is speaking...'}</em>`
-              : `🔈 <em>${lang === 'hi' ? 'आवाज़ बंद है' : 'Audio muted'}</em>`
-          ),
+      // Navigation Footer
+      h('div', { class: 'tutorial-nav' },
+        // Step dots
+        h('div', { class: 'tutorial-dots' },
+          ...TUTORIAL_STEPS.map((_, i) =>
+            h('div', {
+              class: `tutorial-dot ${i === currentTutorialStep ? 'active' : ''}`,
+              style: 'cursor: pointer;',
+              title: `Step ${i + 1} of ${TUTORIAL_STEPS.length}`,
+              onclick: () => renderTutorialStep(i)
+            })
+          )
+        ),
+        // Button row
+        h('div', { class: 'tutorial-btn-row' },
+          !isFirst && h('button', {
+            class: 'top-btn',
+            onclick: () => renderTutorialStep(currentTutorialStep - 1)
+          }, `← ${lang === 'hi' ? 'पिछला' : 'Back'}`),
           h('button', {
             class: 'top-btn',
-            style: 'padding: 2px 8px; font-size: 11px;',
-            title: lang === 'hi' ? 'दोबारा सुनें' : 'Listen again',
-            onclick: () => speakTutorialNarrator(step.voice[lang] || step.desc[lang])
-          }, '🔄 ' + (lang === 'hi' ? 'दोबारा सुनें' : 'Replay'))
-        ),
-
-        // Navigation Footer
-        h('div', { class: 'tutorial-nav' },
-          // Step dots
-          h('div', { class: 'tutorial-dots' },
-            ...TUTORIAL_STEPS.map((_, i) =>
-              h('div', {
-                class: `tutorial-dot ${i === currentTutorialStep ? 'active' : ''}`,
-                style: 'cursor: pointer;',
-                title: `Step ${i + 1} of ${TUTORIAL_STEPS.length}`,
-                onclick: () => renderTutorialStep(i)
-              })
-            )
-          ),
-          // Button row
-          h('div', { class: 'tutorial-btn-row' },
-            !isFirst && h('button', {
-              class: 'top-btn',
-              onclick: () => renderTutorialStep(currentTutorialStep - 1)
-            }, `← ${lang === 'hi' ? 'पिछला' : 'Back'}`),
-            h('button', {
-              class: 'top-btn',
-              onclick: closeTutorial
-            }, lang === 'hi' ? 'छोड़ें' : 'Skip'),
-            h('button', {
-              class: 'primary',
-              style: 'padding: 8px 16px; font-size: 13px;',
-              onclick: () => {
-                if (isLast) {
-                  finishTutorial();
-                } else {
-                  renderTutorialStep(currentTutorialStep + 1);
+            onclick: closeTutorial
+          }, lang === 'hi' ? 'छोड़ें' : 'Skip'),
+          h('button', {
+            class: 'primary',
+            style: 'padding: 8px 16px; font-size: 13px;',
+            onclick: async () => {
+              if (isLast) {
+                finishTutorial();
+              } else {
+                if (isFirst && isGuest) {
+                  const randomNum = Math.floor(1000 + Math.random() * 9000);
+                  const nick = `priya_${randomNum}`;
+                  const pin = '1234';
+                  try {
+                    const r = await api('POST', '/auth/register', { nick, pin, lang });
+                    token = r.token;
+                    store.set('token', token);
+                    me = await api('GET', '/me');
+                    lang = me.lang;
+                    store.set('lang', lang);
+                    await showHome();
+                  } catch {
+                    await showHome();
+                  }
                 }
+                renderTutorialStep(currentTutorialStep + 1);
               }
-            }, isLast
-              ? `🚀 ${lang === 'hi' ? 'शुरू करें!' : 'Get Started!'}`
-              : `${lang === 'hi' ? 'अगला' : 'Next'} →`
-            )
+            }
+          }, isLast
+            ? `🚀 ${lang === 'hi' ? 'शुरू करें!' : 'Get Started!'}`
+            : `${lang === 'hi' ? 'अगला' : 'Next'} →`
           )
         )
       )
@@ -940,7 +1077,7 @@ function finishTutorial() {
 }
 
 async function startTutorial(isManual = false) {
-  if (isManual && current !== showHome && token) {
+  if (isManual && token && current !== showHome) {
     await showHome();
   }
   renderTutorialStep(0);
@@ -1055,6 +1192,15 @@ function showLogin() {
         : '🔒 We never ask for your phone number, Aadhaar, PAN or bank credentials.'
     )
   );
+
+  // Auto-launch interactive assistant welcome for first-time visitors
+  if (!store.get('credgeek_tutorial_done')) {
+    setTimeout(() => {
+      if (!tutorialActive && !document.querySelector('.tutorial-card')) {
+        startTutorial(false);
+      }
+    }, 450);
+  }
 }
 
 // ==========================================================================
@@ -1973,6 +2119,17 @@ function showSettings() {
       h('h3', { text: lang === 'hi' ? 'क्लाउडिनरी मीडिया स्थिति' : 'Cloudinary Media Architecture' }),
       h('p', { class: 'quiet', text: t('cldInfo') }),
       h('div', { class: 'chip done', style: 'margin-top:6px;' }, '✓ ' + t('cldActive'))
+    ),
+    h('div', { class: 'card' },
+      h('h3', { text: lang === 'hi' ? 'ऐप गाइड व दौरा' : 'App Guide & Tour' }),
+      h('p', { class: 'quiet', text: lang === 'hi' ? 'क्रेडसाथी का परिचय और ऐप के मुख्य फीचर्स का दौरा दोबारा देखें।' : 'Replay CredSaathi intro and interactive tour of all key features.' }),
+      h('button', {
+        class: 'primary block',
+        style: 'background:linear-gradient(135deg, var(--brand) 0%, #0d9488 100%);',
+        onclick: () => {
+          showHome().then(() => startTutorial(true));
+        }
+      }, '✨ ' + (lang === 'hi' ? 'क्रेडसाथी दौरा दोबारा शुरू करें' : 'Replay CredSaathi Tour'))
     ),
     h('div', { class: 'card' },
       h('h3', { text: lang === 'hi' ? 'सत्र' : 'Session' }),
