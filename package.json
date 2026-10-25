@@ -11,7 +11,7 @@
     "build": "echo 'Static assets ready in public/'",
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "dev": "node --watch --disable-warning=ExperimentalWarning src/server.js",
-    "test": "CLOUDINARY_MOCK=1 node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
+    "test": "CLOUDINARY_MOCK=1 TTS_PROVIDER=mock STT_PROVIDER=mock node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
     "assets:upload": "node scripts/upload-assets.js",
     "audio:warm": "node --disable-warning=ExperimentalWarning scripts/warm-audio.js",
     "cloudinary:check": "node scripts/check-cloudinary.js"
