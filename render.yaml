@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: credgeek-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLOUDINARY_MOCK
+        value: "0"
+      - key: CLOUDINARY_ROOT_FOLDER
+        value: credgeek
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLOUDINARY_URL
+        sync: false

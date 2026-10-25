@@ -290,8 +290,10 @@ const toast = (m) => {
 };
 
 // ---------- API Layer ----------
+const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || localStorage.getItem('credgeek_api_url'))) || '';
+
 async function api(method, path, body) {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers: {
       ...(body ? { 'content-type': 'application/json' } : {}),
@@ -412,7 +414,8 @@ async function recordAnswer(optionIds, btn) {
     toast(lang === 'hi' ? '🔒 क्लाउडिनरी में सुरक्षित अपलोड...' : '🔒 Direct Cloudinary signed upload...');
     const s = await api('POST', '/voice/sign');
     if (s.mock) {
-      await fetch(`${s.uploadUrl}?public_id=${encodeURIComponent(s.publicId)}`, {
+      const mockUrl = s.uploadUrl.startsWith('http') ? s.uploadUrl : `${API_BASE}${s.uploadUrl}`;
+      await fetch(`${mockUrl}?public_id=${encodeURIComponent(s.publicId)}`, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}` },
         body: blob,

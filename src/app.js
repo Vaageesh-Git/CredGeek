@@ -23,12 +23,23 @@ export function createApp(db) {
   const app = express();
   app.set('trust proxy', 1);
   const cld = ['https://res.cloudinary.com'];
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
   app.use(helmet({ contentSecurityPolicy: { directives: {
     defaultSrc: ["'self'"], scriptSrc: ["'self'"],
     styleSrc: ["'self'", 'https://fonts.googleapis.com'],
     fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
     imgSrc: ["'self'", 'data:', ...cld], mediaSrc: ["'self'", 'blob:', ...cld],
-    connectSrc: ["'self'", 'https://api.cloudinary.com'], objectSrc: ["'none'"], frameAncestors: ["'none'"],
+    connectSrc: ["'self'", 'https://api.cloudinary.com', '*'], objectSrc: ["'none'"], frameAncestors: ["'none'"],
   } } }));
   app.use(rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: 'draft-7', legacyHeaders: false }));
   app.get('/api/health', (_q, r) => r.json({ ok: true, cloudinary: config.cloudinary.mock ? 'mock' : 'live' }));
