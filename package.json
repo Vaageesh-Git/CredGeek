@@ -8,6 +8,7 @@
     "node": ">=22.13"
   },
   "scripts": {
+    "build": "echo 'Static assets ready in public/'",
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "dev": "node --watch --disable-warning=ExperimentalWarning src/server.js",
     "test": "CLOUDINARY_MOCK=1 node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
