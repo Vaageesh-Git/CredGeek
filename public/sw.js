@@ -1,6 +1,6 @@
 // Offline shell + CDN media cache. API calls are never cached (always fresh, never stale personal data).
-const SHELL = 'shell-v4', MEDIA = 'media-v4';
-const FILES = ['/', '/style.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
+const SHELL = 'shell-v5', MEDIA = 'media-v5';
+const FILES = ['/', '/style.css?v=5', '/app.js?v=5', '/icon.svg', '/manifest.webmanifest'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => ![SHELL, MEDIA].includes(k)).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

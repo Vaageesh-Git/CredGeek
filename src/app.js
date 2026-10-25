@@ -48,7 +48,14 @@ export function createApp(db) {
   app.use((req, res, next) => (req.path === '/api/voice/mock-upload' ? next() : express.json({ limit: '50kb' })(req, res, next)));
   app.use('/api', apiRouter(db));
   if (config.cloudinary.mock) app.use('/mock-cdn/upload', express.static(path.resolve('.data/mock-cdn/upload'), { setHeaders: mockTypes }));
-  app.use(express.static(path.join(here, '../public'), { maxAge: config.prod ? '1h' : 0 }));
+  app.use(express.static(path.join(here, '../public'), {
+    maxAge: config.prod ? '1h' : 0,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('sw.js') || filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
   app.use(errorHandler);
   return app;
 }
