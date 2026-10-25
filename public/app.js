@@ -282,11 +282,37 @@ function h(tag, props = {}, ...kids) {
   return el;
 }
 
-const toast = (m) => {
+let toastTimer = null;
+const toast = (m, type) => {
   const e = $('#toast');
-  e.textContent = m;
-  e.classList.add('show');
-  setTimeout(() => e.classList.remove('show'), 2800);
+  if (!e) return;
+
+  let kind = type;
+  if (!kind) {
+    const s = String(m).toLowerCase();
+    if (s.includes('incorrect') || s.includes('already in use') || s.includes('error') || s.includes('please enter') || s.includes('offline') || s.includes('failed') || s.includes('गलत') || s.includes('कृपया')) {
+      kind = 'error';
+    } else if (s.includes('warn') || s.includes('trap') || s.includes('जाल') || s.includes('छोड़ें')) {
+      kind = 'warn';
+    } else if (s.includes('+') || s.includes('🪙') || s.includes('डेमो') || s.includes('demo') || s.includes('achieved') || s.includes('bloomed') || s.includes('सफल')) {
+      kind = 'success';
+    } else {
+      kind = 'info';
+    }
+  }
+
+  let icon = '';
+  if (kind === 'error') icon = '⚠️ ';
+  else if (kind === 'warn') icon = '🔔 ';
+  else if (kind === 'success' && !String(m).includes('🪙') && !String(m).includes('✨') && !String(m).includes('✅')) icon = '✅ ';
+
+  e.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${m}</span>`;
+  e.className = `show toast-${kind}`;
+
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    e.classList.remove('show');
+  }, 3200);
 };
 
 // ---------- API Layer ----------
