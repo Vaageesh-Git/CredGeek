@@ -109,8 +109,6 @@ body {
   max-width: 480px;
   min-height: 100vh;
   background: var(--card-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
   display: flex;
@@ -261,7 +259,7 @@ p { margin: 6px 0; color: var(--ink); }
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  z-index: 50;
+  z-index: 100;
   background: var(--card-glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -271,6 +269,11 @@ p { margin: 6px 0; color: var(--ink); }
   justify-content: space-around;
   align-items: center;
 }
+
+.dock-item * {
+  pointer-events: none;
+}
+
 
 .dock-item {
   display: flex;
@@ -1196,6 +1199,11 @@ button.safe-btn:hover {
 /* ==========================================================================
    ASSISTANT & GUIDED ONBOARDING TOUR (CredSaathi)
    ========================================================================== */
+
+#tutorial-mount:empty {
+  display: none;
+  pointer-events: none;
+}
 
 .tutorial-overlay-svg {
   position: fixed;

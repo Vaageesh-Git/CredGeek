@@ -640,6 +640,10 @@ function renderView(activeNav, ...nodes) {
 }
 const render = (...nodes) => renderView(null, ...nodes);
 
+const backBtn = (fn = showHome) =>
+  h('button', { class: 'top-btn', style: 'margin-bottom:12px;', onclick: fn }, `← ${t('back')}`);
+
+
 // ==========================================================================
 // INTERACTIVE ASSISTANT & GUIDED ONBOARDING TOUR (CredSaathi · क्रेडसाथी)
 // ==========================================================================
@@ -1062,6 +1066,7 @@ function renderTutorialStep(idx) {
 function closeTutorial() {
   stopTutorialNarrator();
   tutorialActive = false;
+  store.set('credgeek_tutorial_done', 'true');
   $('#tutorial-mount')?.replaceChildren();
   toast(lang === 'hi' ? 'दौरा बंद किया गया। आप ऊपर ✨ गाइड से कभी भी देख सकते हैं।' : 'Tour dismissed. You can reopen it anytime via ✨ Guide.');
 }
@@ -1367,7 +1372,7 @@ async function showHome() {
   // Auto-launch interactive assistant tour on first landing
   if (!store.get('credgeek_tutorial_done')) {
     setTimeout(() => {
-      if (!document.querySelector('.tutorial-overlay')) {
+      if (!tutorialActive && !document.querySelector('#tutorial-overlay-svg')) {
         startTutorial(false);
       }
     }, 600);
