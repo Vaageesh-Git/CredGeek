@@ -31,8 +31,8 @@ npm run audio:warm            # pay for TTS once per string, then never again
 ## Architecture
 
 ```
- ![Alt text for screen readers](/public/architecture.png)
- 
+ ![Architecture](public/architecture.png)
+
 ```
 
 Rule of thumb: **only `src/cloudinary/store.js` imports the Cloudinary SDK.** Everything else uses its interface, so tests run offline and the live behaviour is verified by `cloudinary:check`.
