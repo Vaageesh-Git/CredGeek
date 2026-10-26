@@ -31,20 +31,8 @@ npm run audio:warm            # pay for TTS once per string, then never again
 ## Architecture
 
 ```
- PWA (vanilla JS, no build)                         Express API (Node 22)
- ┌────────────────────────┐   JSON    ┌───────────────────────────────────────────────┐
- │ Hook · Lessons · Games │──────────▶│ routes/api.js  (zod-validated, JWT, rate-limit)│
- │ Ladder · Tree · Safety │           │   │            │             │                 │
- │ 🔊 player  🎤 recorder │           │   ▼            ▼             ▼                 │
- └───────┬──────────▲─────┘           │ engine/      content/     cloudinary/          │
-         │          │ mp3, images     │  behaviour   lessons      store.js  (interface)│
-         │          │ (CDN, cached    │  gamification games       audio.js  (TTS cache)│
-         │          │  by SW)         │  voiceIntent  misc        voice.js  (STT flow) │
-         │          │                 │               speakables  images.js seed.js    │
-         │   ┌──────┴───────┐         │      SQLite (node:sqlite)  providers/speech.js │
-         └──▶│  Cloudinary  │◀────────┤      users · progress · tts_cache · assets     │
-  signed     │  CDN + store │ upload  └──────────────┬────────────────────────────────┘
-  upload     └──────────────┘ /sign/destroy          │ Sarvam (or BHASHINI) TTS / STT
+ ![Alt text for screen readers](/public/architecture.png)
+ 
 ```
 
 Rule of thumb: **only `src/cloudinary/store.js` imports the Cloudinary SDK.** Everything else uses its interface, so tests run offline and the live behaviour is verified by `cloudinary:check`.
